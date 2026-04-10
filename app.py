@@ -1,148 +1,86 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import pickle
-import matplotlib.pyplot as plt
 
-# -------------------------------
-# Load Model
-# -------------------------------
-model = pickle.load(open("thyroid.pkl", "rb"))
+# Load model
+with open("thyroid.pkl", "rb") as file:
+    model = pickle.load(file)
 
-# -------------------------------
-# Title
-# -------------------------------
-st.set_page_config(page_title="Thyroid Recurrence Prediction", layout="wide")
+st.set_page_config(page_title="Thyroid Recurrence Predictor", layout="centered")
 
-st.title("🧠 Thyroid Cancer Recurrence Prediction System")
-st.markdown("Predict recurrence risk using clinical inputs")
+st.title("🧠 Thyroid Cancer Recurrence Prediction")
 
-# -------------------------------
-# Sidebar Inputs
-# -------------------------------
-st.sidebar.header("Patient Details")
+st.markdown("Enter patient details below:")
 
-age = st.sidebar.number_input("Age", min_value=1, max_value=120, value=30)
+# ========================
+# INPUTS
+# ========================
+age = st.text_input("Age")
 
-gender = st.sidebar.selectbox("Gender", ["Male", "Female"])
-smoking = st.sidebar.selectbox("Smoking", ["Yes", "No"])
-adenopathy = st.sidebar.selectbox("Adenopathy", ["Yes", "No"])
-focality = st.sidebar.selectbox("Focality", ["Uni-Focal", "Multi-Focal"])
-stage = st.sidebar.selectbox("Stage", ["I", "II", "III", "IV"])
+gender = st.selectbox("Gender", ["Male", "Female"])
 
-# -------------------------------
-# Encoding Function
-# -------------------------------
-def encode_input():
-    return pd.DataFrame({
-        "Age": [age],
-        "Gender": [1 if gender == "Male" else 0],
-        "Smoking": [1 if smoking == "Yes" else 0],
-        "Adenopathy": [1 if adenopathy == "Yes" else 0],
-        "Focality": [1 if focality == "Multi-Focal" else 0],
-        "Stage": [
-            {"I": 1, "II": 2, "III": 3, "IV": 4}[stage]
-        ]
-    })
+smoking = st.selectbox("Smoking", ["Yes", "No"])
 
-# -------------------------------
-# Prediction Button
-# -------------------------------
-if st.sidebar.button("Predict"):
+adenopathy = st.selectbox("Adenopathy", ["Yes", "No"])
 
-    input_df = encode_input()
+focality = st.selectbox("Focality", ["Uni-Focal", "Multi-Focal"])
 
-    prediction = model.predict(input_df)[0]
-    probability = model.predict_proba(input_df)[0][1]
+stage = st.selectbox("Stage", ["Stage I", "Stage II", "Stage III", "Stage IV"])
 
-    # -------------------------------
-    # Main Output
-    # -------------------------------
-    st.subheader("📊 Prediction Result")
 
-    if prediction == 1:
-        st.error("Prediction: HIGH RISK (Recurrence Likely)")
-    else:
-        st.success("Prediction: LOW RISK (No Recurrence)")
+# ========================
+# PREPROCESSING FUNCTION
+# ========================
+def preprocess(age, gender, smoking, adenopathy, focality, stage):
+    # Convert inputs into numeric (must match training encoding)
+    
+    age = int(age)
 
-    st.metric("Recurrence Probability", f"{round(probability*100,2)}%")
+    gender = 1 if gender == "Male" else 0
+    smoking = 1 if smoking == "Yes" else 0
+    adenopathy = 1 if adenopathy == "Yes" else 0
+    focality = 1 if focality == "Multi-Focal" else 0
 
-    # -------------------------------
-    # Probability Bar Chart
-    # -------------------------------
-    st.subheader("📈 Probability Distribution")
+    stage_map = {
+        "Stage I": 1,
+        "Stage II": 2,
+        "Stage III": 3,
+        "Stage IV": 4
+    }
 
-    probs = [1 - probability, probability]
-    labels = ["No Recurrence", "Recurrence"]
+    stage = stage_map[stage]
 
-    fig, ax = plt.subplots()
-    ax.bar(labels, probs)
-    ax.set_ylabel("Probability")
-    st.pyplot(fig)
+    data = pd.DataFrame([[age, gender, smoking, adenopathy, focality, stage]],
+                        columns=["Age", "Gender", "Smoking", "Adenopathy", "Focality", "Stage"])
 
-    # -------------------------------
-    # Feature Importance (if available)
-    # -------------------------------
-    st.subheader("🔍 Key Factors (Feature Importance)")
+    return data
+
+
+# ========================
+# PREDICTION
+# ========================
+if st.button("Predict"):
 
     try:
-        importance = model.feature_importances_
-        features = input_df.columns
+        input_data = preprocess(age, gender, smoking, adenopathy, focality, stage)
 
-        fig2, ax2 = plt.subplots()
-        ax2.barh(features, importance)
-        ax2.set_xlabel("Importance")
-        st.pyplot(fig2)
+        prediction = model.predict(input_data)[0]
 
-        top_features = features[np.argsort(importance)[-2:]]
-        st.write("Top Influencing Factors:", list(top_features))
+        # Probability (if supported)
+        try:
+            prob = model.predict_proba(input_data)[0][1]
+        except:
+            prob = None
 
-    except:
-        st.info("Feature importance not available for this model")
+        st.subheader("🔍 Prediction Result")
 
-    # -------------------------------
-    # Risk Gauge (Simple)
-    # -------------------------------
-    st.subheader("🎯 Risk Gauge")
+        if prediction == 1:
+            st.error("⚠️ Recurrence: YES")
+        else:
+            st.success("✅ Recurrence: NO")
 
-    if probability > 0.7:
-        st.error("🔴 High Risk")
-    elif probability > 0.4:
-        st.warning("🟡 Medium Risk")
-    else:
-        st.success("🟢 Low Risk")
+        if prob is not None:
+            st.info(f"📊 Probability of Recurrence: {prob:.2f}")
 
-    # -------------------------------
-    # Counterfactual Suggestions
-    # -------------------------------
-    st.subheader("💡 Suggestions")
-
-    suggestions = []
-
-    if stage in ["III", "IV"]:
-        suggestions.append("If stage was lower, recurrence risk may decrease")
-
-    if adenopathy == "Yes":
-        suggestions.append("Absence of adenopathy reduces risk")
-
-    if smoking == "Yes":
-        suggestions.append("Avoid smoking to improve prognosis")
-
-    if len(suggestions) == 0:
-        suggestions.append("Maintain current health monitoring")
-
-    for s in suggestions:
-        st.write("👉", s)
-
-# -------------------------------
-# Accuracy Graph (Dummy Example)
-# -------------------------------
-st.subheader("📊 Model Accuracy Comparison")
-
-models = ["Logistic", "RandomForest", "DecisionTree", "XGBoost"]
-accuracy = [0.82, 0.89, 0.85, 0.91]  # replace with real scores
-
-fig3, ax3 = plt.subplots()
-ax3.bar(models, accuracy)
-ax3.set_ylabel("Accuracy")
-st.pyplot(fig3)
+    except Exception as e:
+        st.warning(f"⚠️ Error: {e}")
