@@ -40,3 +40,65 @@ model.fit(X, y)
 # Save
 pickle.dump(model, open("thyroid_01.pkl", "wb"))
 
+
+import pandas as pd
+import pickle
+
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+
+from sklearn.ensemble import RandomForestClassifier
+
+# ========================
+# LOAD DATA
+# ========================
+df = pd.read_csv("Thyroid_Diff.csv.xls")
+
+# ========================
+# USE ONLY UI FEATURES
+# ========================
+features = ["Age", "Gender", "Smoking", "Adenopathy", "Focality", "Stage"]
+X = df[features]
+y = df["Recurred"]
+
+# ========================
+# SPLIT
+# ========================
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ========================
+# PREPROCESSING
+# ========================
+categorical_cols = ["Gender", "Smoking", "Adenopathy", "Focality", "Stage"]
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("cat", OneHotEncoder(handle_unknown='ignore'), categorical_cols)
+    ],
+    remainder='passthrough'
+)
+
+# ========================
+# PIPELINE (ONLY 1 MODEL)
+# ========================
+pipeline = Pipeline([
+    ("preprocessing", preprocessor),
+    ("model", RandomForestClassifier())
+])
+
+# ========================
+# TRAIN
+# ========================
+pipeline.fit(X_train, y_train)
+
+# ========================
+# SAVE MODEL
+# ========================
+with open("thyroid.pkl", "wb") as f:
+    pickle.dump(pipeline, f)
+
+print("✅ Model saved successfully")
