@@ -2,68 +2,40 @@ import streamlit as st
 import pandas as pd
 import pickle
 
-# ========================
-# LOAD MODELS
-# ========================
-with open("thyroid.pkl", "rb") as file:
-    models = pickle.load(file)
+# Load model
+with open("thyroid1.pkl", "rb") as file:
+    model = pickle.load(file)
 
-# Dummy accuracy (replace with your real values)
-model_accuracy = {
-    "Logistic Regression": 0.85,
-    "Random Forest": 0.92,
-    "Decision Tree": 0.88,
-    "XGBoost": 0.94
-}
+st.set_page_config(page_title="Thyroid Recurrence Predictor", layout="centered")
+
+st.title("🧠 Thyroid Cancer Recurrence Prediction")
+
+st.markdown("Enter patient details below:")
 
 # ========================
-# PAGE CONFIG
+# INPUTS
 # ========================
-st.set_page_config(page_title="Thyroid Predictor", page_icon="🧠", layout="wide")
+age = st.text_input("Age")
 
-# ========================
-# SIDEBAR
-# ========================
-st.sidebar.title("⚙️ Settings")
+gender = st.selectbox("Gender", ["Male", "Female"])
 
-model_choice = st.sidebar.selectbox(
-    "Select Model",
-    list(models.keys())
-)
+smoking = st.selectbox("Smoking", ["Yes", "No"])
 
-st.sidebar.markdown(f"📊 Accuracy: **{model_accuracy[model_choice]*100:.2f}%**")
+adenopathy = st.selectbox("Adenopathy", ["Yes", "No"])
 
-# ========================
-# MAIN TITLE
-# ========================
-st.title("🧠 Thyroid Cancer Recurrence Predictor")
-st.markdown("### Enter Patient Clinical Details")
+focality = st.selectbox("Focality", ["Uni-Focal", "Multi-Focal"])
 
-# ========================
-# INPUT LAYOUT (COLUMNS)
-# ========================
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    age = st.number_input("Age", min_value=1, max_value=120)
-
-    gender = st.selectbox("Gender", ["Male", "Female"])
-
-with col2:
-    smoking = st.selectbox("Smoking", ["Yes", "No"])
-
-    adenopathy = st.selectbox("Adenopathy", ["Yes", "No"])
-
-with col3:
-    focality = st.selectbox("Focality", ["Uni-Focal", "Multi-Focal"])
-
-    stage = st.selectbox("Stage", ["Stage I", "Stage II", "Stage III", "Stage IV"])
+stage = st.selectbox("Stage", ["Stage I", "Stage II", "Stage III", "Stage IV"])
 
 
 # ========================
-# PREPROCESS FUNCTION
+# PREPROCESSING FUNCTION
 # ========================
 def preprocess(age, gender, smoking, adenopathy, focality, stage):
+    # Convert inputs into numeric (must match training encoding)
+    
+    age = int(age)
+
     gender = 1 if gender == "Male" else 0
     smoking = 1 if smoking == "Yes" else 0
     adenopathy = 1 if adenopathy == "Yes" else 0
@@ -78,43 +50,37 @@ def preprocess(age, gender, smoking, adenopathy, focality, stage):
 
     stage = stage_map[stage]
 
-    return pd.DataFrame([[age, gender, smoking, adenopathy, focality, stage]],
+    data = pd.DataFrame([[age, gender, smoking, adenopathy, focality, stage]],
                         columns=["Age", "Gender", "Smoking", "Adenopathy", "Focality", "Stage"])
 
+    return data
+
 
 # ========================
-# PREDICT BUTTON
+# PREDICTION
 # ========================
-st.markdown("---")
-
-if st.button("🔍 Predict", use_container_width=True):
-
-    input_data = preprocess(age, gender, smoking, adenopathy, focality, stage)
-
-    model = models[model_choice]
-
-    prediction = model.predict(input_data)[0]
+if st.button("Predict"):
 
     try:
-        prob = model.predict_proba(input_data)[0][1]
-    except:
-        prob = None
+        input_data = preprocess(age, gender, smoking, adenopathy, focality, stage)
 
-    st.markdown("## 📊 Prediction Result")
+        prediction = model.predict(input_data)[0]
 
-    # Stylish Output
-    if prediction == 1:
-        st.markdown(
-            "<h2 style='color:red;'>⚠️ High Risk of Recurrence</h2>",
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            "<h2 style='color:green;'>✅ Low Risk (No Recurrence)</h2>",
-            unsafe_allow_html=True
-        )
+        # Probability (if supported)
+        try:
+            prob = model.predict_proba(input_data)[0][1]
+        except:
+            prob = None
 
-    if prob is not None:
-        st.progress(float(prob))
-        st.write(f"**Probability:** {prob:.2f}")
+        st.subheader("🔍 Prediction Result")
 
+        if prediction == 1:
+            st.error("⚠️ Recurrence: YES")
+        else:
+            st.success("✅ Recurrence: NO")
+
+        if prob is not None:
+            st.info(f"📊 Probability of Recurrence: {prob:.2f}")
+
+    except Exception as e:
+        st.warning(f"⚠️ Error: {e}")
