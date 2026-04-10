@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import joblib
 
 # LOAD MODEL
-with open("thyroid01.pkl", "rb") as f:
-    model = pickle.load(f)
+model = joblib.load("thyroid.joblib")
 
 st.title("🧠 Thyroid Prediction")
 
